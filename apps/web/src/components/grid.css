@@ -3,35 +3,95 @@
   min-height: 100vh;
 }
 
-.pw-toolbar {
+/* ---- Session bar — anchors the wall. Neutral surface, one state colour. ---- */
+.pw-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 8px 12px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 0.5px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.pw-session {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
 .pw-wordmark {
-  font-family: var(--font-jetbrains), ui-monospace, monospace;
-  font-size: 15px;
+  font-family: var(--font-data);
+  font-size: var(--fs-body);
   font-weight: 500;
   letter-spacing: 0.04em;
   color: var(--text-hi);
+  flex-shrink: 0;
 }
 
-.pw-toolbar-right {
+.pw-session-sep {
+  width: 0.5px;
+  height: 14px;
+  background: var(--border-hi);
+  flex-shrink: 0;
+}
+
+.pw-session-circuit {
+  font-family: var(--font-data);
+  font-size: var(--fs-label);
+  font-weight: 500;
+  color: var(--text-hi);
+  white-space: nowrap;
+}
+
+.pw-session-name {
+  font-family: var(--font-label);
+  font-size: var(--fs-label);
+  color: var(--text-mid);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pw-state {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
+  margin-left: var(--space-2);
+  flex-shrink: 0;
 }
 
+.pw-state-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pw-state-label {
+  font-family: var(--font-data);
+  font-size: var(--fs-unit);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.pw-bar-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+/* ---- Controls ---- */
 .pw-btn {
-  font-family: var(--font-inter), system-ui, sans-serif;
-  font-size: 13px;
+  font-family: var(--font-label);
+  font-size: var(--fs-label);
   color: var(--text-mid);
   background: var(--bg-panel);
   border: 0.5px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 12px;
+  border-radius: var(--radius);
+  padding: 6px var(--space-3);
   cursor: pointer;
 }
 
@@ -54,11 +114,11 @@
   right: 0;
   top: calc(100% + 4px);
   margin: 0;
-  padding: 4px;
+  padding: var(--space-1);
   list-style: none;
   background: var(--bg-raised);
   border: 0.5px solid var(--border-hi);
-  border-radius: 6px;
+  border-radius: var(--radius);
   min-width: 160px;
   z-index: 20;
 }
@@ -67,7 +127,7 @@
   display: block;
   width: 100%;
   text-align: left;
-  font-size: 13px;
+  font-size: var(--fs-label);
   color: var(--text-mid);
   background: transparent;
   border: none;
@@ -81,6 +141,7 @@
   color: var(--text-hi);
 }
 
+/* ---- Grid items ---- */
 .pw-grid-item,
 .pw-frame {
   height: 100%;
@@ -101,9 +162,32 @@
   flex: 1;
 }
 
+/* Drag affordance — a quiet grip on the header, revealed on hover/focus only.
+   Left padding is reserved always so the title never shifts. */
 .react-grid-item .pw-panel-head {
+  position: relative;
+  padding-left: 26px;
   cursor: grab;
   user-select: none;
+}
+
+.react-grid-item .pw-panel-head::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 12px;
+  background-image: radial-gradient(var(--text-low) 42%, transparent 44%);
+  background-size: 3px 3px;
+  opacity: 0;
+  transition: opacity var(--tick-ms) ease;
+}
+
+.react-grid-item:hover .pw-panel-head::before,
+.react-grid-item:focus-within .pw-panel-head::before {
+  opacity: 0.65;
 }
 
 .react-grid-item.react-draggable-dragging .pw-panel-head {
@@ -126,7 +210,17 @@
   border: 0.5px solid var(--border);
   border-radius: 4px;
   cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--tick-ms) ease;
   z-index: 5;
+}
+
+/* Remove button stays hidden until the panel is hovered or focused within —
+   present when reached for, never cluttering the data. */
+.react-grid-item:hover .pw-frame-remove,
+.react-grid-item:focus-within .pw-frame-remove,
+.pw-frame-remove:focus-visible {
+  opacity: 1;
 }
 
 .pw-frame-remove:hover {
@@ -137,7 +231,7 @@
 .react-grid-item.react-grid-placeholder {
   background: var(--border-hi);
   opacity: 0.25;
-  border-radius: 6px;
+  border-radius: var(--radius);
 }
 
 .react-resizable-handle {

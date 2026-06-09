@@ -1,0 +1,111 @@
+/* No-live-session home — the natural idle state, designed as an instrument at
+   rest. Flat dark, hairlines only, one state colour. */
+
+.pw-home {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--bg-base);
+}
+
+.pw-home-inner {
+  width: 100%;
+  max-width: 720px;
+}
+
+.pw-home-head {
+  margin-bottom: var(--space-6);
+}
+
+.pw-home-mark {
+  font-family: var(--font-data);
+  font-size: var(--fs-hero);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-hi);
+}
+
+.pw-home-tagline {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-label);
+  font-size: var(--fs-label);
+  color: var(--text-low);
+}
+
+.pw-home-state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  font-family: var(--font-data);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ghost workspace — the default layout in hairline, dim. Mirrors the real grid
+   (timing left, track right, telemetry full-width below). */
+.pw-home-preview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 132px 84px;
+  gap: var(--space-2);
+}
+
+.pw-ghost {
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg-panel) 60%, transparent);
+  padding: var(--space-2) var(--space-3);
+}
+
+.pw-ghost-timing {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.pw-ghost-track {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.pw-ghost-tel {
+  grid-column: 1 / 3;
+  grid-row: 2;
+}
+
+.pw-ghost-title {
+  font-family: var(--font-label);
+  font-size: var(--fs-unit);
+  letter-spacing: 0.02em;
+  color: var(--text-low);
+}
+
+.pw-home-hint {
+  margin: var(--space-4) 0 0;
+  font-family: var(--font-label);
+  font-size: var(--fs-unit);
+  color: var(--text-low);
+}
+
+@media (max-width: 560px) {
+  .pw-home-preview {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(3, 72px);
+  }
+  .pw-ghost-timing,
+  .pw-ghost-track,
+  .pw-ghost-tel {
+    grid-column: 1;
+  }
+  .pw-ghost-timing {
+    grid-row: 1;
+  }
+  .pw-ghost-track {
+    grid-row: 2;
+  }
+  .pw-ghost-tel {
+    grid-row: 3;
+  }
+}

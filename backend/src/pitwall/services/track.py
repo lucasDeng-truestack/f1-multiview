@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 VIEWBOX_WIDTH = 1000.0
 PADDING = 40.0
 # Narrow window per driver — avoids downloading full-session /location (~40k rows each).
-LOCATION_LOOKBACK = timedelta(seconds=60)
+# Only needs to span a few sample intervals back from the replay clock to find each
+# driver's latest fix; kept small so 1s polling doesn't refetch a huge overlapping window.
+LOCATION_LOOKBACK = timedelta(seconds=10)
 
 
 @dataclass

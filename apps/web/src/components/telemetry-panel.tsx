@@ -3,11 +3,14 @@
 import { useEffect, useRef } from "react";
 import type { TelemetrySample } from "@pitwall/shared-types";
 
+import { useStale } from "@/lib/use-stale";
 import { useTelemetryStore } from "@/lib/stores/telemetry-store";
 
+import "./panel.css";
 import "./telemetry-panel.css";
 
 const TRACE_SECONDS = 30;
+const STALE_MS = 4000;
 
 function tsMs(s: TelemetrySample): number {
   const t = Date.parse(s.ts);
@@ -18,7 +21,9 @@ export function TelemetryPanel() {
   const driver = useTelemetryStore((s) => s.driverNumber);
   const buffer = useTelemetryStore((s) => s.buffer);
   const isLive = useTelemetryStore((s) => s.isLive);
+  const receivedAt = useTelemetryStore((s) => s.receivedAt);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stale = useStale(receivedAt, STALE_MS);
 
   const latest = buffer.length ? buffer[buffer.length - 1] : null;
 
@@ -31,17 +36,26 @@ export function TelemetryPanel() {
       <div className="pw-panel pw-tel-empty">
         <span className="pw-panel-title">Telemetry</span>
         <p className="pw-empty-text">
-          No driver selected. Pick a driver from the timing panel.
+          No driver selected. Pick a driver from the timing panel to trace
+          speed, throttle and brake.
         </p>
       </div>
     );
+  }
+
+  // Driver picked but no samples yet → loading, shaped like the panel.
+  if (buffer.length === 0) {
+    return <TelemetrySkeleton driver={driver} />;
   }
 
   return (
     <div className="pw-panel pw-tel">
       <div className="pw-panel-head">
         <span className="pw-panel-title">Telemetry · #{driver}</span>
-        <span className="pw-panel-meta">{isLive ? "LIVE" : "REPLAY"}</span>
+        <span className="pw-panel-meta">
+          <span>{isLive ? "Live" : "Replay"}</span>
+          {stale && <span className="pw-stale">· stale</span>}
+        </span>
       </div>
 
       <div className="pw-tel-readouts">
@@ -67,6 +81,31 @@ export function TelemetryPanel() {
         <span className="pw-tel-trace-label">
           last {TRACE_SECONDS}s · speed / throttle / brake
         </span>
+      </div>
+    </div>
+  );
+}
+
+function TelemetrySkeleton({ driver }: { driver: number }) {
+  return (
+    <div className="pw-panel pw-tel">
+      <div className="pw-panel-head">
+        <span className="pw-panel-title">Telemetry · #{driver}</span>
+        <span className="pw-panel-meta">connecting…</span>
+      </div>
+      <div className="pw-tel-readouts">
+        <div className="pw-tel-speed">
+          <span className="pw-skel" style={{ width: 92, height: 28 }} />
+        </div>
+        <div className="pw-tel-side">
+          <span className="pw-skel" style={{ width: 40, height: 24 }} />
+          <span className="pw-skel" style={{ width: 56, height: 24 }} />
+          <span className="pw-skel" style={{ width: 40, height: 24 }} />
+        </div>
+      </div>
+      <div className="pw-tel-trace-wrap">
+        <div className="pw-skel pw-tel-trace" style={{ height: 120 }} />
+        <span className="pw-tel-trace-label">waiting for samples…</span>
       </div>
     </div>
   );

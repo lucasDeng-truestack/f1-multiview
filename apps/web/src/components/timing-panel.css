@@ -1,32 +1,6 @@
-.pw-panel {
-  background: var(--bg-panel);
-  border: 0.5px solid var(--border);
-  border-radius: 6px;
-  font-family: var(--font-inter), system-ui, sans-serif;
-  color: var(--text-hi);
-  overflow: hidden;
-}
-
-.pw-panel-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 8px 12px;
-  border-bottom: 0.5px solid var(--border);
-}
-
-.pw-panel-title {
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: var(--text-mid);
-}
-
-.pw-panel-meta {
-  font-family: var(--font-jetbrains), ui-monospace, monospace;
-  font-size: 11px;
-  color: var(--text-low);
-}
+/* Timing tower — panel chrome lives in panel.css; this is tower-specific.
+   The eye reads DOWN a column, so every row shares one grid template and every
+   number column is right-aligned with tabular figures. */
 
 .pw-table {
   display: flex;
@@ -35,25 +9,32 @@
 
 .pw-row {
   display: grid;
-  grid-template-columns: 32px 1.4fr 0.9fr 0.9fr 1fr 1fr 56px 64px;
+  grid-template-columns: 28px 1.4fr 0.9fr 0.9fr 1fr 1fr 56px 60px;
   align-items: center;
-  gap: 8px;
-  padding: 5px 12px;
-  font-family: var(--font-jetbrains), ui-monospace, monospace;
-  font-size: 13px;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  min-height: 26px;
+  font-family: var(--font-data);
+  font-size: var(--fs-label);
   font-variant-numeric: tabular-nums;
   border-bottom: 0.5px solid color-mix(in srgb, var(--border) 50%, transparent);
 }
 
+/* Quiet zebra — structure without competing with the data. */
 .pw-row:nth-child(odd) {
-  background: color-mix(in srgb, var(--bg-raised) 40%, transparent);
+  background: color-mix(in srgb, var(--bg-raised) 35%, transparent);
 }
 
 .pw-row-head {
-  font-family: var(--font-inter), system-ui, sans-serif;
-  font-size: 11px;
+  font-family: var(--font-label);
+  font-size: var(--fs-unit);
+  font-weight: 400;
   color: var(--text-low);
   letter-spacing: 0.02em;
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel);
+  z-index: 1;
 }
 
 .pw-num {
@@ -63,15 +44,19 @@
 .pw-pos {
   color: var(--text-mid);
   font-weight: 500;
+  text-align: right;
 }
 
 .pw-driver {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   font-weight: 500;
+  color: var(--text-hi);
+  min-width: 0;
 }
 
+/* Team colour as a thin marker only. */
 .pw-team-bar {
   width: 3px;
   height: 14px;
@@ -79,13 +64,24 @@
   flex-shrink: 0;
 }
 
+/* Bulk numbers sit at --text-mid; only the best lap holds --text-hi, so the
+   column reads calm and the breathing (flashes) stands out. */
+.pw-num {
+  color: var(--text-mid);
+}
+
 .pw-best {
   color: var(--text-hi);
+}
+
+.pw-row-pit {
+  color: var(--text-low);
 }
 
 .pw-sectors {
   display: flex;
   gap: 3px;
+  align-items: center;
 }
 
 .pw-sector {
@@ -94,24 +90,10 @@
   border-radius: 1px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .pw-flash {
-    animation: pw-sector-flash 600ms ease-out;
-  }
-  @keyframes pw-sector-flash {
-    0% {
-      box-shadow: 0 0 0 2px var(--purple);
-    }
-    100% {
-      box-shadow: none;
-    }
-  }
-}
-
 .pw-tyre {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
 }
 
 .pw-tyre-dot {
@@ -126,12 +108,85 @@
   font-size: 12px;
 }
 
-.pw-empty {
-  padding: 24px 12px;
+/* ---- The breathing. Motion only where the race did something. ---- */
+@media (prefers-reduced-motion: no-preference) {
+  /* Signature: fastest sector flashes purple and fades to neutral. */
+  .pw-flash {
+    animation: pw-sector-flash var(--flash-ms) ease-out;
+  }
+  @keyframes pw-sector-flash {
+    0% {
+      box-shadow: 0 0 0 2px var(--purple);
+    }
+    100% {
+      box-shadow: none;
+    }
+  }
+
+  /* Personal-best lap: the Best figure flashes green, then settles. */
+  .pw-best-flash {
+    animation: pw-best-flash var(--flash-ms) ease-out;
+  }
+  @keyframes pw-best-flash {
+    0% {
+      color: var(--green);
+    }
+    100% {
+      color: var(--text-hi);
+    }
+  }
+
+  /* Position gained/lost — rare, meaningful, semantic. Green up, red down. */
+  .pw-pos-up {
+    animation: pw-pos-up var(--flash-ms) ease-out;
+  }
+  .pw-pos-down {
+    animation: pw-pos-down var(--flash-ms) ease-out;
+  }
+  @keyframes pw-pos-up {
+    0% {
+      background: color-mix(in srgb, var(--green) 35%, transparent);
+      color: var(--green);
+    }
+    100% {
+      background: transparent;
+      color: var(--text-mid);
+    }
+  }
+  @keyframes pw-pos-down {
+    0% {
+      background: color-mix(in srgb, var(--red) 30%, transparent);
+      color: var(--red);
+    }
+    100% {
+      background: transparent;
+      color: var(--text-mid);
+    }
+  }
 }
 
-.pw-empty-text {
-  margin: 8px 0 0;
-  font-size: 13px;
-  color: var(--text-low);
+.pw-row-selectable {
+  cursor: pointer;
+}
+
+.pw-row-selectable:hover {
+  background: color-mix(in srgb, var(--bg-raised) 60%, transparent);
+}
+
+.pw-row-selected {
+  background: color-mix(in srgb, var(--purple) 12%, var(--bg-panel));
+}
+
+/* ---- Loading skeleton — tower-shaped, dim rows where numbers go. ---- */
+.pw-skel-row {
+  display: grid;
+  grid-template-columns: 28px 1.4fr 0.9fr 0.9fr 1fr 1fr 56px 60px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  min-height: 26px;
+}
+
+.pw-skel-cell {
+  height: 9px;
 }

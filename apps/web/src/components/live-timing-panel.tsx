@@ -4,11 +4,14 @@ import { useEffect, useRef } from "react";
 import type { GapValue, SegmentColor, TimingRow } from "@pitwall/shared-types";
 
 import { selectDriver } from "@/lib/ws-client";
+import { useStale } from "@/lib/use-stale";
 import { useTelemetryStore } from "@/lib/stores/telemetry-store";
 import { useTimingStore } from "@/lib/stores/timing-store";
 
+import "./panel.css";
 import "./timing-panel.css";
-import "./telemetry-panel.css";
+
+const STALE_MS = 8000;
 
 const TYRE_COLORS: Record<string, string> = {
   SOFT: "#E8443B",
@@ -42,20 +45,28 @@ function fmtGap(gap: GapValue): string {
 
 export function LiveTimingPanel() {
   const snapshot = useTimingStore((s) => s.snapshot);
+  const receivedAt = useTimingStore((s) => s.receivedAt);
   const selectedDriver = useTelemetryStore((s) => s.driverNumber);
   const setDriver = useTelemetryStore((s) => s.setDriver);
+  const stale = useStale(receivedAt, STALE_MS);
 
   const handleSelectDriver = (driverNumber: number) => {
     setDriver(driverNumber);
     selectDriver(driverNumber);
   };
 
-  if (!snapshot || snapshot.rows.length === 0) {
+  // session==null is handled by the app-level home screen; inside the grid a
+  // null snapshot means the feed hasn't landed yet → loading, not empty.
+  if (!snapshot) {
+    return <TimingSkeleton />;
+  }
+
+  if (snapshot.rows.length === 0) {
     return (
       <div className="pw-panel pw-empty">
         <span className="pw-panel-title">Live timing</span>
         <p className="pw-empty-text">
-          No live session. Load a replay to explore timing.
+          Session up, no cars on track yet. Timing fills as drivers go out.
         </p>
       </div>
     );
@@ -66,13 +77,16 @@ export function LiveTimingPanel() {
       <div className="pw-panel-head">
         <span className="pw-panel-title">Live timing</span>
         <span className="pw-panel-meta">
-          {snapshot.is_live ? "LIVE" : "REPLAY"} · {snapshot.rows.length} cars
+          <span>
+            {snapshot.is_live ? "Live" : "Replay"} · {snapshot.rows.length} cars
+          </span>
+          {stale && <span className="pw-stale">· stale</span>}
         </span>
       </div>
 
       <div className="pw-table" role="table" aria-label="Live timing leaderboard">
         <div className="pw-row pw-row-head" role="row">
-          <span>Pos</span>
+          <span className="pw-num">Pos</span>
           <span>Driver</span>
           <span className="pw-num">Gap</span>
           <span className="pw-num">Int</span>
@@ -106,19 +120,46 @@ function TimingRowView({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const prevBest = useRef<boolean[]>(row.sector_is_best);
-  const flashing = row.sector_is_best.map(
-    (best, i) => best && !prevBest.current[i],
+  // Sector personal-best flash (purple). Toggles off→on so the animation replays.
+  const sectorWasBest = useRef<boolean[]>(row.sector_is_best);
+  const sectorFlash = row.sector_is_best.map(
+    (best, i) => best && !sectorWasBest.current[i],
   );
   useEffect(() => {
-    prevBest.current = row.sector_is_best;
+    sectorWasBest.current = row.sector_is_best;
   }, [row.sector_is_best]);
+
+  // Best-lap improvement flashes the Best figure green (keyed remount replays).
+  const prevBest = useRef(row.best_lap);
+  const bestImproved =
+    row.best_lap != null &&
+    prevBest.current != null &&
+    row.best_lap < prevBest.current;
+  useEffect(() => {
+    prevBest.current = row.best_lap;
+  }, [row.best_lap]);
+
+  // Position change — green up, red down. Rare and meaningful.
+  const prevPos = useRef(row.position);
+  let posDir: "up" | "down" | null = null;
+  if (
+    row.position != null &&
+    prevPos.current != null &&
+    row.position !== prevPos.current
+  ) {
+    posDir = row.position < prevPos.current ? "up" : "down";
+  }
+  useEffect(() => {
+    prevPos.current = row.position;
+  }, [row.position]);
 
   const teamColor = row.team_colour ? `#${row.team_colour}` : "var(--text-low)";
 
   return (
     <div
-      className={`pw-row pw-row-selectable${selected ? " pw-row-selected" : ""}`}
+      className={`pw-row pw-row-selectable${selected ? " pw-row-selected" : ""}${
+        row.in_pit ? " pw-row-pit" : ""
+      }`}
       role="row"
       tabIndex={0}
       onClick={onSelect}
@@ -128,11 +169,18 @@ function TimingRowView({
           onSelect();
         }
       }}
-      style={
-        leader ? { boxShadow: "inset 2px 0 0 var(--purple)" } : undefined
-      }
+      // Leader holds a thin team-colour edge — distinct "leader" marker,
+      // purple stays reserved for personal bests.
+      style={leader ? { boxShadow: `inset 2px 0 0 ${teamColor}` } : undefined}
     >
-      <span className="pw-pos">{row.position ?? "—"}</span>
+      <span
+        key={`${row.position}`}
+        className={`pw-pos${
+          posDir === "up" ? " pw-pos-up" : posDir === "down" ? " pw-pos-down" : ""
+        }`}
+      >
+        {row.position ?? "—"}
+      </span>
       <span className="pw-driver">
         <span
           className="pw-team-bar"
@@ -144,12 +192,17 @@ function TimingRowView({
       <span className="pw-num">{fmtGap(row.gap_to_leader)}</span>
       <span className="pw-num">{fmtGap(row.interval)}</span>
       <span className="pw-num">{fmtLap(row.last_lap)}</span>
-      <span className="pw-num pw-best">{fmtLap(row.best_lap)}</span>
+      <span
+        key={`best-${row.best_lap}`}
+        className={`pw-num pw-best${bestImproved ? " pw-best-flash" : ""}`}
+      >
+        {fmtLap(row.best_lap)}
+      </span>
       <span className="pw-sectors">
         {row.sector_colors.map((color, i) => (
           <span
             key={i}
-            className={`pw-sector${flashing[i] ? " pw-flash" : ""}`}
+            className={`pw-sector${sectorFlash[i] ? " pw-flash" : ""}`}
             style={{ background: SECTOR_COLORS[color] }}
             aria-label={`Sector ${i + 1}: ${color}`}
           />
@@ -171,6 +224,31 @@ function TimingRowView({
           "—"
         )}
       </span>
+    </div>
+  );
+}
+
+function TimingSkeleton() {
+  return (
+    <div className="pw-panel">
+      <div className="pw-panel-head">
+        <span className="pw-panel-title">Live timing</span>
+        <span className="pw-panel-meta">connecting…</span>
+      </div>
+      <div className="pw-table" aria-hidden>
+        {Array.from({ length: 10 }).map((_, i) => (
+          <div className="pw-skel-row" key={i}>
+            <span className="pw-skel pw-skel-cell" style={{ width: "60%" }} />
+            <span className="pw-skel pw-skel-cell" style={{ width: "70%" }} />
+            <span className="pw-skel pw-skel-cell" style={{ width: "80%" }} />
+            <span className="pw-skel pw-skel-cell" style={{ width: "80%" }} />
+            <span className="pw-skel pw-skel-cell" style={{ width: "85%" }} />
+            <span className="pw-skel pw-skel-cell" style={{ width: "85%" }} />
+            <span className="pw-skel pw-skel-cell" style={{ width: "90%" }} />
+            <span className="pw-skel pw-skel-cell" style={{ width: "50%" }} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

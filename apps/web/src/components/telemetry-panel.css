@@ -113,19 +113,7 @@
 
 .pw-tel-trace-label {
   display: block;
-  margin-top: 4px;
-  font-size: 11px;
+  margin-top: var(--space-1);
+  font-size: var(--fs-unit);
   color: var(--text-low);
-}
-
-.pw-row-selectable {
-  cursor: pointer;
-}
-
-.pw-row-selectable:hover {
-  background: color-mix(in srgb, var(--bg-raised) 60%, transparent);
-}
-
-.pw-row-selected {
-  background: color-mix(in srgb, var(--purple) 12%, var(--bg-panel));
 }

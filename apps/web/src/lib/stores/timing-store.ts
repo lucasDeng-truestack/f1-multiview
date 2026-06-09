@@ -3,10 +3,12 @@ import { create } from "zustand";
 
 interface TimingState {
   snapshot: TimingSnapshot | null;
+  receivedAt: number | null;
   setSnapshot: (snapshot: TimingSnapshot) => void;
 }
 
 export const useTimingStore = create<TimingState>((set) => ({
   snapshot: null,
-  setSnapshot: (snapshot) => set({ snapshot }),
+  receivedAt: null,
+  setSnapshot: (snapshot) => set({ snapshot, receivedAt: Date.now() }),
 }));

@@ -1,0 +1,91 @@
+/* Shared panel chrome — every panel (timing, track, telemetry, video) is a
+   sibling. One frame, one header, one empty/loading/stale language. Imported
+   once from pitwall-grid. Loaded globally (these are not CSS modules). */
+
+.pw-panel {
+  background: var(--bg-panel);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-label);
+  color: var(--text-hi);
+  overflow: hidden;
+}
+
+/* One header treatment shared by all panels. */
+.pw-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 0.5px solid var(--border);
+}
+
+.pw-panel-title {
+  font-size: var(--fs-label);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-mid);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pw-panel-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-data);
+  font-size: var(--fs-unit);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-low);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Stale tag — a feed that stopped arriving. Yellow = caution, in the meta line,
+   never a modal. */
+.pw-stale {
+  color: var(--yellow);
+}
+
+/* Empty state — terse, engineer's voice. Direction, not apology. */
+.pw-empty {
+  padding: var(--space-6) var(--space-3);
+}
+
+.pw-empty .pw-panel-title {
+  display: block;
+}
+
+.pw-empty-text {
+  margin: var(--space-2) 0 0;
+  font-size: var(--fs-label);
+  color: var(--text-low);
+  max-width: 42ch;
+}
+
+/* Loading skeletons — shaped like the panel, never a spinner. The pulse is the
+   only motion; reduced-motion freezes it (global rule). */
+.pw-skel {
+  background: var(--bg-raised);
+  border-radius: 3px;
+  animation: pw-skel-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pw-skel-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pw-skel {
+    animation: none;
+    opacity: 0.6;
+  }
+}

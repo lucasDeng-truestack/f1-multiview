@@ -3,26 +3,59 @@
 @tailwind utilities;
 
 :root {
+  /* Surfaces — darker = lower. brand.md */
   --bg-base: #0a0c0f;
   --bg-panel: #12151a;
   --bg-raised: #1a1e25;
   --border: #262b33;
   --border-hi: #38404b;
+
+  /* Text — neutral always. */
   --text-hi: #e8ebf0;
   --text-mid: #9aa3b0;
   --text-low: #5b6472;
+
+  /* Telemetry / status — a color on screen means something happened. */
   --purple: #b14cff;
   --green: #2bd96b;
   --yellow: #ffd23f;
   --red: #ff4d4d;
   --cyan: #36d7e0;
   --white-best: #f2f4f8;
+
+  /* Type scale (px). brand.md: 11 unit · 13 label · 15 body · 20 title · 28 hero. */
+  --fs-unit: 11px;
+  --fs-label: 13px;
+  --fs-body: 15px;
+  --fs-title: 20px;
+  --fs-hero: 28px;
+
+  /* Spacing — one rhythm. 4px base, 8px standard, 12px panel padding. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --radius: 6px;
+
+  /* Motion — functional only. Value tick fast, best-flash fades. */
+  --tick-ms: 120ms;
+  --flash-ms: 600ms;
+
+  --font-data: var(--font-jetbrains), ui-monospace, monospace;
+  --font-label: var(--font-inter), system-ui, sans-serif;
 }
 
 body {
   background-color: var(--bg-base);
   color: var(--text-hi);
   font-variant-numeric: tabular-nums;
+}
+
+/* One visible focus treatment for keyboard users across every control. */
+:focus-visible {
+  outline: 2px solid var(--border-hi);
+  outline-offset: 1px;
 }
 
 @media (prefers-reduced-motion: reduce) {

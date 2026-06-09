@@ -16,14 +16,14 @@ class Settings(BaseSettings):
 
     poll_interval_ms: int = 5000
     timing_poll_interval_ms: int = 4000
-    track_poll_interval_ms: int = 4000
+    track_poll_interval_ms: int = 1000
     telemetry_poll_interval_ms: int = 1000
     cors_origins: str = "http://localhost:3000"
 
     # Replay is the default dev path — historical OpenF1 data is free and keyless.
     replay_mode: bool = True
     replay_session_key: int = 9165
-    replay_step_seconds: float = 60.0
+    replay_step_seconds: float = 1.0
 
     @property
     def cors_origin_list(self) -> list[str]:

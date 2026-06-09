@@ -9,7 +9,21 @@
 }
 
 .pw-car {
-  transition: transform 250ms linear;
+  /* Glide across the full gap until the next update (set per-frame on the svg),
+     so the dot moves continuously instead of snapping then freezing. */
+  transition: transform var(--car-move-ms, 0ms) linear;
+}
+
+/* Loading: the outline pulses softly while the real geometry is built. */
+.pw-track-skel {
+  animation: pw-skel-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pw-track-skel {
+    animation: none;
+    opacity: 0.6;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

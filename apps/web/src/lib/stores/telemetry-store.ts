@@ -14,6 +14,7 @@ interface TelemetryState {
   driverNumber: number | null;
   isLive: boolean;
   buffer: TelemetrySample[];
+  receivedAt: number | null;
   setDriver: (driver: number) => void;
   applyUpdate: (update: TelemetryUpdate) => void;
   clear: () => void;
@@ -23,8 +24,10 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
   driverNumber: null,
   isLive: false,
   buffer: [],
+  receivedAt: null,
 
-  setDriver: (driver) => set({ driverNumber: driver, buffer: [], isLive: false }),
+  setDriver: (driver) =>
+    set({ driverNumber: driver, buffer: [], isLive: false, receivedAt: null }),
 
   applyUpdate: (update) => {
     if (update.driver_number !== get().driverNumber) return;
@@ -36,8 +39,10 @@ export const useTelemetryStore = create<TelemetryState>((set, get) => ({
     set({
       buffer: trimToWindow(merged),
       isLive: update.is_live,
+      receivedAt: Date.now(),
     });
   },
 
-  clear: () => set({ buffer: [], driverNumber: null, isLive: false }),
+  clear: () =>
+    set({ buffer: [], driverNumber: null, isLive: false, receivedAt: null }),
 }));
