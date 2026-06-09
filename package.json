@@ -1,0 +1,18 @@
+{
+  "name": "pitwall",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "dev:web": "turbo dev --filter=web",
+    "dev:backend": "cd backend && uv run uvicorn pitwall.main:app --reload --port 8000"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4"
+  },
+  "packageManager": "pnpm@10.29.2",
+  "engines": {
+    "node": ">=20"
+  }
+}

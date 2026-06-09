@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-base: #0a0c0f;
+  --bg-panel: #12151a;
+  --bg-raised: #1a1e25;
+  --border: #262b33;
+  --border-hi: #38404b;
+  --text-hi: #e8ebf0;
+  --text-mid: #9aa3b0;
+  --text-low: #5b6472;
+  --purple: #b14cff;
+  --green: #2bd96b;
+  --yellow: #ffd23f;
+  --red: #ff4d4d;
+  --cyan: #36d7e0;
+  --white-best: #f2f4f8;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-hi);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

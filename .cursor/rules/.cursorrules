@@ -1,0 +1,77 @@
+# PitWall — Cursor Rules
+
+You are an expert engineer building PitWall, a multiview F1 race-watching tool.
+Read ARCHITECTURE.md and brand.md before generating significant code.
+
+## Project shape
+
+Monorepo managed with pnpm workspaces + Turborepo:
+
+```
+pitwall/
+├─ apps/
+│  ├─ web/            # Next.js 14, App Router, TypeScript
+│  └─ mobile/         # Expo, React Native, TypeScript
+├─ packages/
+│  ├─ shared-types/   # TS types shared by web + mobile (source of truth mirrors backend)
+│  └─ ui/             # shared React components where practical
+├─ backend/           # Python 3.12, FastAPI, uv-managed
+└─ docs/              # ARCHITECTURE.md, brand.md, etc.
+```
+
+## Working style
+
+- Make small, self-contained changes. One panel, one endpoint, one service at a time.
+- After each change, state the exact command to run and what the user should see.
+- Don't scaffold five files when one is enough. Don't add abstractions before they're needed.
+- If a requirement is ambiguous or an API contract is unknown, ask — do not guess endpoints or fields.
+- Never leave TODOs in place of working code without flagging them clearly.
+
+## Data source rules (critical)
+
+- OpenF1 is the only live source. Cache responses in Redis; never hammer the API from the client.
+- FastF1 is for replay + circuit geometry only, never the live path.
+- There is NO legal public source for onboard video. Do not scrape, proxy, or bypass any DRM.
+  Keep video behind a swappable `StreamService` interface with a placeholder default.
+- All timing/telemetry flows: source → backend service → Redis → WebSocket hub → client.
+  Clients never call OpenF1 directly.
+
+## Backend (Python / FastAPI)
+
+- Python 3.12. Manage deps with `uv`. Type everything; run `mypy` clean.
+- Pydantic v2 models are the source of truth for every payload. Mirror them in shared-types.
+- One service per concern: TimingService, TelemetryService, StreamService. Inject dependencies.
+- Use `httpx.AsyncClient` for OpenF1; never block the event loop.
+- WebSocket messages are JSON with a discriminated `type` field, e.g. `{ "type": "timing.update", ... }`.
+- Poll intervals live in config, not hardcoded. Be a good API citizen.
+- Log with structured logging; no bare `print`.
+
+## Web (Next.js / TypeScript)
+
+- App Router, Server Components for shells, Client Components for live panels.
+- State: Zustand stores, one slice per data domain (timing, telemetry, session).
+- A single WebSocket client module owns the connection, reconnect/backoff, and dispatch.
+  Panels subscribe to store slices — they do not open their own sockets.
+- Panel grid uses react-grid-layout. Every panel is a self-contained component with its own
+  loading + empty + error states.
+- Tailwind for styling, tokens from brand.md. No inline magic colors.
+- No `any`. Import payload types from `@pitwall/shared-types`.
+
+## Mobile (Expo)
+
+- Reuse `shared-types` and the WebSocket client logic where possible.
+- Prioritize timing + track map; video is last and may be web-only initially.
+- Test on a real device early — WebSocket + background behavior differs from web.
+
+## Quality bar
+
+- Every async path handles failure: API down, socket dropped, no live session.
+- Show a real empty state when no session is live (it's not race day most of the time).
+- Round all displayed numbers; never leak float artifacts to the UI.
+- Accessibility: keyboard focus, reduced-motion respected, readable contrast in the dark theme.
+- Don't commit secrets. Config via `.env`, documented in `.env.example`.
+
+## When unsure
+
+Ask before: changing the WebSocket message schema, adding a dependency, introducing a new service,
+or touching anything related to video sourcing.

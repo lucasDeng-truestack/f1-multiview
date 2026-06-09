@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build
+.next/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# python
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.mypy_cache/
+backend/.pytest_cache/
+
+# env
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# os / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# logs
+*.log

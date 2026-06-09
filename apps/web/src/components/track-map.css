@@ -1,0 +1,27 @@
+.pw-track-wrap {
+  padding: 12px;
+}
+
+.pw-track-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pw-car {
+  transition: transform 250ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pw-car {
+    transition: none;
+  }
+}
+
+.pw-car-label {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  font-size: 9px;
+  font-weight: 500;
+  fill: var(--bg-base);
+  pointer-events: none;
+}

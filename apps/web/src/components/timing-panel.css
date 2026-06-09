@@ -1,0 +1,137 @@
+.pw-panel {
+  background: var(--bg-panel);
+  border: 0.5px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  color: var(--text-hi);
+  overflow: hidden;
+}
+
+.pw-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.pw-panel-title {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-mid);
+}
+
+.pw-panel-meta {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--text-low);
+}
+
+.pw-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.pw-row {
+  display: grid;
+  grid-template-columns: 32px 1.4fr 0.9fr 0.9fr 1fr 1fr 56px 64px;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 0.5px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.pw-row:nth-child(odd) {
+  background: color-mix(in srgb, var(--bg-raised) 40%, transparent);
+}
+
+.pw-row-head {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--text-low);
+  letter-spacing: 0.02em;
+}
+
+.pw-num {
+  text-align: right;
+}
+
+.pw-pos {
+  color: var(--text-mid);
+  font-weight: 500;
+}
+
+.pw-driver {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.pw-team-bar {
+  width: 3px;
+  height: 14px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.pw-best {
+  color: var(--text-hi);
+}
+
+.pw-sectors {
+  display: flex;
+  gap: 3px;
+}
+
+.pw-sector {
+  width: 14px;
+  height: 4px;
+  border-radius: 1px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pw-flash {
+    animation: pw-sector-flash 600ms ease-out;
+  }
+  @keyframes pw-sector-flash {
+    0% {
+      box-shadow: 0 0 0 2px var(--purple);
+    }
+    100% {
+      box-shadow: none;
+    }
+  }
+}
+
+.pw-tyre {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pw-tyre-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pw-tyre-age {
+  color: var(--text-mid);
+  font-size: 12px;
+}
+
+.pw-empty {
+  padding: 24px 12px;
+}
+
+.pw-empty-text {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-low);
+}
