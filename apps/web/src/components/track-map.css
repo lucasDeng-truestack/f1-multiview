@@ -1,17 +1,84 @@
 .pw-track-wrap {
+  /* Claim the panel's remaining height (the panel is a flex column) so the
+     track can be fitted to it, not sized by the circuit's aspect ratio. */
+  flex: 1;
+  min-height: 0;
   padding: 12px;
+  overflow: hidden;
 }
 
 .pw-track-svg {
+  /* Fit the whole circuit inside the panel regardless of orientation. The
+     viewBox + default preserveAspectRatio="xMidYMid meet" letterboxes it, so
+     portrait tracks (Bahrain, Monaco) are no longer clipped at the bottom. */
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+}
+
+/* Zoomed in → the map can be dragged around. */
+.pw-track-pannable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.pw-track-dragging,
+.pw-track-dragging * {
+  cursor: grabbing;
+}
+
+/* Zoom / follow layer — transform-origin at the SVG origin so translate+scale
+   compose predictably. Eased over the same duration the dots glide so a
+   followed car stays centred instead of drifting. */
+.pw-track-view {
+  transform-origin: 0 0;
+  transition: transform var(--car-move-ms, 250ms) linear;
 }
 
 .pw-car {
   /* Glide across the full gap until the next update (set per-frame on the svg),
      so the dot moves continuously instead of snapping then freezing. */
   transition: transform var(--car-move-ms, 0ms) linear;
+  cursor: pointer;
+}
+
+.pw-car:focus {
+  outline: none;
+}
+
+.pw-car-dot {
+  transition:
+    opacity 120ms ease,
+    stroke 120ms ease;
+}
+
+/* Dim the rest of the field while one car is under the cursor/keyboard. */
+.pw-car-dim {
+  opacity: 0.3;
+}
+
+/* Highlight ring — painted only when hovered, keyboard-focused, or selected. */
+.pw-car-ring {
+  stroke-width: 1.5;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.pw-car-hovered .pw-car-ring,
+.pw-car:focus-visible .pw-car-ring {
+  opacity: 0.9;
+}
+
+/* Selected (also the telemetry driver) keeps a steady bright ring. */
+.pw-car-selected .pw-car-ring {
+  opacity: 1;
+  stroke: var(--text-hi);
+  stroke-width: 2;
+}
+
+.pw-car-hovered .pw-car-dot,
+.pw-car:focus-visible .pw-car-dot {
+  stroke: var(--text-hi);
 }
 
 /* Loading: the outline pulses softly while the real geometry is built. */
@@ -24,10 +91,8 @@
     animation: none;
     opacity: 0.6;
   }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pw-car {
+  .pw-car,
+  .pw-track-view {
     transition: none;
   }
 }
@@ -38,4 +103,97 @@
   font-weight: 500;
   fill: var(--bg-base);
   pointer-events: none;
+}
+
+/* ---- Driver identity tag (panel header, always crisp regardless of zoom) ---- */
+.pw-driver-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-data);
+  font-size: var(--fs-unit);
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+
+.pw-driver-tag-bar {
+  width: 3px;
+  height: 12px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.pw-driver-tag-pos {
+  color: var(--text-mid);
+  font-weight: 500;
+}
+
+.pw-driver-tag-acr {
+  color: var(--text-hi);
+  font-weight: 500;
+}
+
+.pw-driver-tag-num {
+  color: var(--text-low);
+}
+
+.pw-driver-tag-team {
+  color: var(--text-mid);
+  font-family: var(--font-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pw-track-head-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* ---- Zoom / focus controls ---- */
+.pw-track-ctrls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.pw-track-ctrl {
+  font-family: var(--font-data);
+  font-size: var(--fs-unit);
+  line-height: 1;
+  color: var(--text-mid);
+  background: var(--bg-raised);
+  border: 0.5px solid var(--border);
+  border-radius: 4px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  cursor: pointer;
+}
+
+.pw-track-ctrl:hover:not(:disabled) {
+  border-color: var(--border-hi);
+  color: var(--text-hi);
+}
+
+.pw-track-ctrl:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pw-track-focus.is-on {
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
+
+.pw-track-zoom {
+  font-family: var(--font-data);
+  font-size: var(--fs-unit);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-low);
+  min-width: 28px;
+  text-align: center;
 }

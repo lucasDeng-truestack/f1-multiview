@@ -95,6 +95,11 @@ export function selectDriver(driver: number): void {
   socket.send(JSON.stringify({ type: "select_driver", driver }));
 }
 
+export function loadSession(sessionKey: number): void {
+  if (socket?.readyState !== WebSocket.OPEN) return;
+  socket.send(JSON.stringify({ type: "load_session", session_key: sessionKey }));
+}
+
 export function stopWsClient(): void {
   started = false;
   if (reconnectTimer !== null) {

@@ -23,7 +23,10 @@ class Settings(BaseSettings):
     # Replay is the default dev path — historical OpenF1 data is free and keyless.
     replay_mode: bool = True
     replay_session_key: int = 9165
-    replay_step_seconds: float = 1.0
+    # All panels share one ReplayClock that advances by real wall time scaled by
+    # this factor. 1.0 = real time, 2.0 = twice as fast. Poll intervals control
+    # update frequency only, not speed.
+    replay_speed: float = 1.0
 
     @property
     def cors_origin_list(self) -> list[str]:

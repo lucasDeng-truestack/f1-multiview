@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import bisect
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -13,6 +14,8 @@ from pitwall.cache.redis import RedisCache
 from pitwall.clients.openf1 import OpenF1Client
 from pitwall.config import settings
 from pitwall.models.track import CarPosition, TrackGeometry, TrackPositions
+from pitwall.services.replay_clock import ReplayClock
+from pitwall.services.replay_controller import ReplayController
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +43,30 @@ class _Transform:
         return nx, ny
 
 
+@dataclass
+class _LocationTrace:
+    """A driver's full-session /location, parsed once and held in memory.
+
+    `ts` is epoch seconds, sorted, parallel to `xs`/`ys`, so the position at a
+    replay instant is one binary search — no OpenF1 call per poll."""
+
+    ts: list[float]
+    xs: list[float]
+    ys: list[float]
+
+
+def _to_epoch(raw: str | None) -> float | None:
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.timestamp()
+
+
 def _parse_date(rec: dict[str, Any]) -> datetime | None:
     raw = rec.get("date") or rec.get("date_start")
     if not raw:
@@ -54,17 +81,52 @@ def _parse_date(rec: dict[str, Any]) -> datetime | None:
 
 
 class TrackService:
-    def __init__(self, openf1: OpenF1Client, cache: RedisCache) -> None:
+    def __init__(
+        self,
+        openf1: OpenF1Client,
+        cache: RedisCache,
+        clock: ReplayClock | None = None,
+        controller: ReplayController | None = None,
+    ) -> None:
         self._openf1 = openf1
         self._cache = cache
+        self._clock = clock
+        self._controller = controller
+        self._synced_version = 0
         self._task: asyncio.Task[None] | None = None
         self._transforms: dict[str, _Transform] = {}
         self._drivers_cache: dict[str, dict[int, dict[str, Any]]] = {}
         self._endpoint_cache: dict[str, list[dict[str, Any]]] = {}
+        # Replay /location is immutable — fetch every driver's whole session once,
+        # then serve each frame from memory. Keyed by str(session_key) -> driver.
+        self._location_cache: dict[str, dict[int, _LocationTrace]] = {}
         self._geometry_sent_for: str | None = None
-        self._replay_clock: datetime | None = None
-        self._replay_start: datetime | None = None
-        self._replay_end: datetime | None = None
+
+    def _replay_session_key(self) -> int:
+        return (
+            self._controller.session_key
+            if self._controller is not None
+            else settings.replay_session_key
+        )
+
+    async def _sync_session(self) -> None:
+        """On a runtime session switch: drop every per-session cache, push the
+        new outline, and clear the old cars so they don't linger on the new
+        track while the new location data prefetches."""
+        if self._controller is None or self._controller.version == self._synced_version:
+            return
+        self._synced_version = self._controller.version
+        self._transforms.clear()
+        self._location_cache.clear()
+        self._endpoint_cache.clear()
+        self._drivers_cache.clear()
+        await self._emit_geometry()
+        empty = {
+            "type": "track.positions",
+            "data": {"session_key": self._replay_session_key(), "is_live": False, "cars": []},
+        }
+        await self._cache.write_snapshot("track_positions", empty)
+        await self._cache.publish("track_positions", empty)
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._run())
@@ -77,22 +139,10 @@ class TrackService:
             except asyncio.CancelledError:
                 pass
 
-    async def _init_replay_clock(self) -> None:
-        sessions = await self._fetch_endpoint("sessions", settings.replay_session_key)
-        if not sessions:
-            logger.warning("Replay session %s not found", settings.replay_session_key)
-            return
-        session = sessions[0]
-        start = _parse_date(session)
-        end_raw = session.get("date_end")
-        self._replay_start = start
-        self._replay_clock = start
-        self._replay_end = _parse_date({"date": end_raw}) if end_raw else None
-
     async def _emit_geometry(self) -> None:
         try:
-            session_key = (
-                settings.replay_session_key if settings.replay_mode else "latest"
+            session_key: int | str = (
+                self._replay_session_key() if settings.replay_mode else "latest"
             )
             geometry = await self.build_geometry(session_key)
             payload = {"type": "track.geometry", "data": geometry.model_dump()}
@@ -112,8 +162,6 @@ class TrackService:
     async def _run(self) -> None:
         # Let session/timing finish their startup burst before geometry + positions.
         await asyncio.sleep(4)
-        if settings.replay_mode:
-            await self._init_replay_clock()
         await self._emit_geometry()
         interval = settings.track_poll_interval_ms / 1000
         while True:
@@ -127,10 +175,15 @@ class TrackService:
 
     async def _poll_once(self) -> None:
         if settings.replay_mode:
+            await self._sync_session()
+            # Shared ReplayClock → the car dots show the same instant as the
+            # telemetry trace and timing tower.
+            as_of = self._clock.now() if self._clock else None
+            if as_of is None:
+                return
             positions = await self.build_positions(
-                settings.replay_session_key, as_of=self._replay_clock
+                self._replay_session_key(), as_of=as_of
             )
-            await self._advance_replay_clock()
         else:
             positions = await self.build_positions("latest")
 
@@ -143,19 +196,6 @@ class TrackService:
             len(positions.cars),
             positions.is_live,
         )
-
-    async def _advance_replay_clock(self) -> None:
-        if self._replay_clock is None:
-            return
-        self._replay_clock += timedelta(seconds=settings.replay_step_seconds)
-        if (
-            self._replay_end is not None
-            and self._replay_clock > self._replay_end
-            and self._replay_start is not None
-        ):
-            self._replay_clock = self._replay_start
-            self._geometry_sent_for = None
-            await self._emit_geometry()
 
     async def _fetch_endpoint(
         self, endpoint: str, session_key: int | str
@@ -251,6 +291,48 @@ class TrackService:
         points = [list(transform.apply(p["x"], p["y"])) for p in locs]
         return TrackGeometry(session_key=sk, width=width, height=height, points=points)
 
+    async def _ensure_location_cache(
+        self, session_key: int | str
+    ) -> dict[int, _LocationTrace]:
+        """Incrementally prefetch full-session /location, ONE driver per call.
+
+        Each driver's fetch is large (a whole session of samples), so filling
+        the grid in one blocking loop would stall the poll loop for minutes and
+        make a runtime session switch wait for the whole thing. One driver per
+        poll keeps the loop responsive: dots appear progressively within
+        seconds, and a switch takes effect between fetches."""
+        key = str(session_key)
+        traces = self._location_cache.setdefault(key, {})
+        drivers = await self._drivers(session_key)
+        pending = [dn for dn in drivers if dn not in traces]
+        if not pending:
+            return traces
+
+        dn = pending[0]
+        rows = await self._openf1.fetch_list(
+            "location", session_key=session_key, driver_number=dn
+        )
+        pts: list[tuple[float, float, float]] = []
+        for p in rows:
+            x, y = p.get("x"), p.get("y")
+            ts = _to_epoch(p.get("date"))
+            if x is None or y is None or ts is None:
+                continue
+            pts.append((ts, float(x), float(y)))
+        pts.sort(key=lambda t: t[0])
+        traces[dn] = _LocationTrace(
+            ts=[t[0] for t in pts],
+            xs=[t[1] for t in pts],
+            ys=[t[2] for t in pts],
+        )
+        if len(pending) == 1:
+            logger.info(
+                "Replay location cache complete: session=%s drivers=%d",
+                session_key,
+                len(traces),
+            )
+        return traces
+
     async def build_positions(
         self, session_key: int | str = "latest", as_of: datetime | None = None
     ) -> TrackPositions:
@@ -260,11 +342,36 @@ class TrackService:
             transform = self._transforms[str(session_key)]
 
         drivers = await self._drivers(session_key)
+
+        # Replay (as_of set) → serve from the in-memory cache, no OpenF1 calls.
+        if as_of is not None:
+            traces = await self._ensure_location_cache(session_key)
+            as_of_ts = as_of.timestamp()
+            sk = int(session_key) if str(session_key).isdigit() else 0
+            cars: list[CarPosition] = []
+            for dn, trace in traces.items():
+                idx = bisect.bisect_right(trace.ts, as_of_ts) - 1
+                if idx < 0:
+                    continue
+                nx, ny = transform.apply(trace.xs[idx], trace.ys[idx])
+                meta = drivers.get(dn, {})
+                cars.append(
+                    CarPosition(
+                        driver_number=dn,
+                        name_acronym=meta.get("name_acronym", ""),
+                        team_colour=meta.get("team_colour", ""),
+                        x=round(nx, 1),
+                        y=round(ny, 1),
+                    )
+                )
+            return TrackPositions(session_key=sk, is_live=False, cars=cars)
+
+        # Live (as_of None) → window-fetch the latest fixes; data is still growing.
         start, end = self._location_window(as_of)
         locs = await self._openf1.fetch_location_window(session_key, None, start, end)
         latest = self._latest_location_per_driver(locs, as_of)
 
-        cars: list[CarPosition] = []
+        cars = []
         sk = 0
         for dn, point in latest.items():
             nx, ny = transform.apply(point["x"], point["y"])
@@ -280,5 +387,4 @@ class TrackService:
                 )
             )
 
-        is_live = str(session_key) == "latest" and as_of is None
-        return TrackPositions(session_key=sk, is_live=is_live, cars=cars)
+        return TrackPositions(session_key=sk, is_live=True, cars=cars)

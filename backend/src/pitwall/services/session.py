@@ -7,6 +7,7 @@ from pitwall.cache.redis import RedisCache
 from pitwall.clients.openf1 import OpenF1Client
 from pitwall.config import settings
 from pitwall.models.messages import Session, SessionUpdateMessage
+from pitwall.services.replay_controller import ReplayController
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +47,15 @@ def _to_session(raw: dict[str, Any] | None) -> Session:
 
 
 class SessionService:
-    def __init__(self, openf1: OpenF1Client, cache: RedisCache) -> None:
+    def __init__(
+        self,
+        openf1: OpenF1Client,
+        cache: RedisCache,
+        controller: ReplayController | None = None,
+    ) -> None:
         self._openf1 = openf1
         self._cache = cache
+        self._controller = controller
         self._task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
@@ -75,7 +82,12 @@ class SessionService:
 
     async def _poll_once(self) -> None:
         if settings.replay_mode:
-            raw = await self._openf1.get_session(settings.replay_session_key)
+            session_key = (
+                self._controller.session_key
+                if self._controller is not None
+                else settings.replay_session_key
+            )
+            raw = await self._openf1.get_session(session_key)
             session = _to_session(raw)
             session.is_live = False
         else:

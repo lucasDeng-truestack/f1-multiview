@@ -1,7 +1,9 @@
 "use client";
 
+import { SessionBrowser } from "@/components/session-browser";
 import { useSessionStore } from "@/lib/stores/session-store";
 
+import "./grid.css";
 import "./no-session-home.css";
 
 type Status = "connecting" | "connected" | "disconnected" | "error";
@@ -32,11 +34,16 @@ export function NoSessionHome() {
           <p className="pw-home-tagline">Read the race the way an engineer does.</p>
           <div className="pw-home-state" role="status">
             <span
-              className="pw-state-dot"
+              className={`pw-state-dot${
+                status === "connecting" ? " pw-dot-pulse" : ""
+              }`}
               style={{ background: state.color }}
               aria-hidden
             />
             <span style={{ color: state.color }}>{state.text}</span>
+          </div>
+          <div className="pw-home-action">
+            <SessionBrowser label="Load replay" />
           </div>
         </header>
 

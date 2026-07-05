@@ -1,0 +1,28 @@
+.pw-video-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+}
+
+/* 16:9 frame letterboxed on the darker base surface — where the stream will
+   sit once a provider is configured. */
+.pw-video-frame {
+  width: 100%;
+  max-height: 100%;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-base);
+  border: 0.5px solid var(--border);
+  border-radius: 4px;
+}
+
+.pw-video-copy {
+  font-family: var(--font-label);
+  font-size: var(--fs-label);
+  color: var(--text-low);
+}

@@ -83,15 +83,18 @@
   flex-shrink: 0;
 }
 
-/* ---- Controls ---- */
+/* ---- Controls — one height, one voice ---- */
 .pw-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
   font-family: var(--font-label);
   font-size: var(--fs-label);
   color: var(--text-mid);
   background: var(--bg-panel);
   border: 0.5px solid var(--border);
   border-radius: var(--radius);
-  padding: 6px var(--space-3);
+  padding: 0 var(--space-3);
   cursor: pointer;
 }
 
@@ -107,6 +110,55 @@
 
 .pw-menu {
   position: relative;
+}
+
+/* ---- Session browser popover (year → GP → session) ---- */
+.pw-browser {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--bg-raised);
+  border: 0.5px solid var(--border-hi);
+  border-radius: var(--radius);
+  min-width: 240px;
+  z-index: 20;
+}
+
+.pw-browser-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.pw-browser-field > span {
+  font-family: var(--font-label);
+  font-size: var(--fs-unit);
+  letter-spacing: 0.02em;
+  color: var(--text-low);
+}
+
+.pw-browser-field select {
+  font-family: var(--font-label);
+  font-size: var(--fs-label);
+  color: var(--text-hi);
+  background: var(--bg-panel);
+  border: 0.5px solid var(--border);
+  border-radius: 4px;
+  padding: 6px var(--space-2);
+  cursor: pointer;
+}
+
+.pw-browser-field select:hover:not(:disabled) {
+  border-color: var(--border-hi);
+}
+
+.pw-browser-field select:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .pw-menu-list {
@@ -223,6 +275,13 @@
   opacity: 1;
 }
 
+/* Invisible hit-area extension: 22px visual, 44px touchable (a11y minimum). */
+.pw-frame-remove::after {
+  content: "";
+  position: absolute;
+  inset: -11px;
+}
+
 .pw-frame-remove:hover {
   color: var(--red);
   border-color: var(--red);
@@ -247,4 +306,38 @@
   height: 7px;
   border-right: 1.5px solid var(--text-low);
   border-bottom: 1.5px solid var(--text-low);
+}
+
+/* ---- Narrow window: single-column stack, no drag/resize chrome ---- */
+.pw-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+.pw-stack-item > .pw-panel {
+  height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.pw-stack-item .pw-table {
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Session identity collapses gracefully: drop the session name first, then the
+   circuit, keeping wordmark + state dot to the last. */
+@media (max-width: 900px) {
+  .pw-session-name {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .pw-session-circuit,
+  .pw-session-sep {
+    display: none;
+  }
 }

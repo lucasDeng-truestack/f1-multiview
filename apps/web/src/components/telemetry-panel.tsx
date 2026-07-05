@@ -169,6 +169,27 @@ function drawTrace(canvas: HTMLCanvasElement | null, buffer: TelemetrySample[]) 
   const w = canvas.width;
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
+
+  const css = getComputedStyle(canvas);
+
+  // Neutral grid first — quarter lines + 10s marks give the trace scale
+  // without an axis. Drawn even when empty so the area reads as instrument.
+  ctx.strokeStyle = css.getPropertyValue("--border").trim() || "#262b33";
+  ctx.lineWidth = 1;
+  for (const f of [0.25, 0.5, 0.75]) {
+    ctx.beginPath();
+    ctx.moveTo(0, Math.round(h * f) + 0.5);
+    ctx.lineTo(w, Math.round(h * f) + 0.5);
+    ctx.stroke();
+  }
+  for (let s = 10; s < TRACE_SECONDS; s += 10) {
+    const px = Math.round(w - (s / TRACE_SECONDS) * w) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, h);
+    ctx.stroke();
+  }
+
   if (buffer.length < 2) return;
 
   const now = tsMs(buffer[buffer.length - 1]);
@@ -193,7 +214,6 @@ function drawTrace(canvas: HTMLCanvasElement | null, buffer: TelemetrySample[]) 
     ctx.stroke();
   };
 
-  const css = getComputedStyle(canvas);
   const cyan = css.getPropertyValue("--cyan").trim() || "#36d7e0";
   const green = css.getPropertyValue("--green").trim() || "#2bd96b";
   const red = css.getPropertyValue("--red").trim() || "#ff4d4d";

@@ -1,15 +1,20 @@
 "use client";
 
 import "./panel.css";
+import "./video-panel.css";
 
 export function VideoPanel() {
   return (
-    <div className="pw-panel pw-empty">
-      <span className="pw-panel-title">Video</span>
-      <p className="pw-empty-text">
-        No stream connected. Onboard video can be added later via an embed you
-        provide.
-      </p>
+    <div className="pw-panel">
+      <div className="pw-panel-head">
+        <span className="pw-panel-title">Video</span>
+        <span className="pw-panel-meta">no stream</span>
+      </div>
+      <div className="pw-video-body">
+        <div className="pw-video-frame">
+          <span className="pw-video-copy">Stream provider not configured.</span>
+        </div>
+      </div>
     </div>
   );
 }

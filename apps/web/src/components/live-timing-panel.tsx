@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { type CSSProperties, memo, useEffect, useRef } from "react";
 import type { GapValue, SegmentColor, TimingRow } from "@pitwall/shared-types";
 
 import { selectDriver } from "@/lib/ws-client";
 import { useStale } from "@/lib/use-stale";
+import { useValueChanged } from "@/lib/use-value-changed";
 import { useTelemetryStore } from "@/lib/stores/telemetry-store";
 import { useTimingStore } from "@/lib/stores/timing-store";
 
@@ -109,7 +110,20 @@ export function LiveTimingPanel() {
   );
 }
 
-function TimingRowView({
+/** One cell that ticks (brief text-hi flash) when its value changes. */
+function TickCell({ gap }: { gap: GapValue }) {
+  const changed = useValueChanged(gap);
+  return (
+    <span
+      key={String(gap)}
+      className={`pw-num${changed ? " pw-tick" : ""}`}
+    >
+      {fmtGap(gap)}
+    </span>
+  );
+}
+
+function TimingRowViewInner({
   row,
   leader,
   selected,
@@ -169,9 +183,15 @@ function TimingRowView({
           onSelect();
         }
       }}
-      // Leader holds a thin team-colour edge — distinct "leader" marker,
-      // purple stays reserved for personal bests.
-      style={leader ? { boxShadow: `inset 2px 0 0 ${teamColor}` } : undefined}
+      // Leader holds a thin team-colour edge at low opacity — a marker, not a
+      // stripe. Purple stays reserved for personal bests.
+      style={
+        leader
+          ? {
+              boxShadow: `inset 2px 0 0 color-mix(in srgb, ${teamColor} 70%, transparent)`,
+            }
+          : undefined
+      }
     >
       <span
         key={`${row.position}`}
@@ -189,8 +209,8 @@ function TimingRowView({
         />
         {row.name_acronym || row.driver_number}
       </span>
-      <span className="pw-num">{fmtGap(row.gap_to_leader)}</span>
-      <span className="pw-num">{fmtGap(row.interval)}</span>
+      <TickCell gap={row.gap_to_leader} />
+      <TickCell gap={row.interval} />
       <span className="pw-num">{fmtLap(row.last_lap)}</span>
       <span
         key={`best-${row.best_lap}`}
@@ -210,16 +230,18 @@ function TimingRowView({
       </span>
       <span className="pw-tyre">
         {row.compound ? (
-          <>
-            <span
-              className="pw-tyre-dot"
-              style={{
-                background: TYRE_COLORS[row.compound] ?? "var(--text-low)",
-              }}
-              aria-hidden
-            />
+          <span
+            className="pw-tyre-pill"
+            style={
+              {
+                "--tyre-colour": TYRE_COLORS[row.compound] ?? "var(--text-low)",
+              } as CSSProperties
+            }
+            aria-label={`${row.compound.toLowerCase()} tyre, ${row.tyre_age ?? "unknown"} laps`}
+          >
+            <span className="pw-tyre-compound">{row.compound[0]}</span>
             <span className="pw-tyre-age">{row.tyre_age ?? "—"}</span>
-          </>
+          </span>
         ) : (
           "—"
         )}
@@ -227,6 +249,32 @@ function TimingRowView({
     </div>
   );
 }
+
+/* Rows re-render on every snapshot because each WS message parses fresh row
+   objects. Compare the fields the row actually renders so 20Hz updates only
+   touch rows whose data changed. onSelect is identity-unstable but only
+   captures the stable driver_number — safe to ignore. */
+const TimingRowView = memo(TimingRowViewInner, (prev, next) => {
+  const a = prev.row;
+  const b = next.row;
+  return (
+    prev.leader === next.leader &&
+    prev.selected === next.selected &&
+    a.driver_number === b.driver_number &&
+    a.position === b.position &&
+    a.name_acronym === b.name_acronym &&
+    a.team_colour === b.team_colour &&
+    a.gap_to_leader === b.gap_to_leader &&
+    a.interval === b.interval &&
+    a.last_lap === b.last_lap &&
+    a.best_lap === b.best_lap &&
+    a.compound === b.compound &&
+    a.tyre_age === b.tyre_age &&
+    a.in_pit === b.in_pit &&
+    a.sector_colors.join() === b.sector_colors.join() &&
+    a.sector_is_best.join() === b.sector_is_best.join()
+  );
+});
 
 function TimingSkeleton() {
   return (

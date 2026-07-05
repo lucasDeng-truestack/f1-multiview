@@ -3,18 +3,33 @@
 from __future__ import annotations
 
 import asyncio
+import bisect
 import logging
-from datetime import UTC, datetime, timedelta
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from pitwall.cache.redis import RedisCache
 from pitwall.clients.openf1 import OpenF1Client
 from pitwall.config import settings
 from pitwall.models.telemetry import TelemetrySample, TelemetryUpdate, drs_state
+from pitwall.services.replay_clock import ReplayClock
+from pitwall.services.replay_controller import ReplayController
 
 logger = logging.getLogger(__name__)
 
 TRACE_SECONDS = 30.0
+
+
+@dataclass
+class _CachedTrace:
+    """A driver's full-session car_data, parsed once and held in memory.
+
+    `ts` is epoch seconds parallel to `samples`, kept sorted so a replay window
+    is a pair of binary searches — no OpenF1 call per poll."""
+
+    ts: list[float]
+    samples: list[TelemetrySample]
 
 
 def _parse_date(raw: str | None) -> datetime | None:
@@ -43,15 +58,40 @@ def _to_sample(rec: dict[str, Any]) -> TelemetrySample:
 
 
 class TelemetryService:
-    def __init__(self, openf1: OpenF1Client, cache: RedisCache) -> None:
+    def __init__(
+        self,
+        openf1: OpenF1Client,
+        cache: RedisCache,
+        clock: ReplayClock | None = None,
+        controller: ReplayController | None = None,
+    ) -> None:
         self._openf1 = openf1
         self._cache = cache
+        self._clock = clock
+        self._controller = controller
+        self._synced_version = 0
         self._task: asyncio.Task[None] | None = None
         self._selected_driver: int | None = None
         self._live_cursor: datetime | None = None
-        self._replay_clock: datetime | None = None
-        self._replay_start: datetime | None = None
-        self._replay_end: datetime | None = None
+        # Replay car_data is immutable — fetch each driver's whole session once,
+        # then serve every window from memory. Decouples playback frequency from
+        # OpenF1's rate limit. Keyed by driver_number.
+        self._trace_cache: dict[int, _CachedTrace] = {}
+
+    def _replay_session_key(self) -> int:
+        return (
+            self._controller.session_key
+            if self._controller is not None
+            else settings.replay_session_key
+        )
+
+    def _sync_session(self) -> None:
+        """Drop the cached car_data traces when the active session changed."""
+        if self._controller is None:
+            return
+        if self._controller.version != self._synced_version:
+            self._trace_cache.clear()
+            self._synced_version = self._controller.version
 
     async def start(self) -> None:
         self._task = asyncio.create_task(self._run())
@@ -71,8 +111,6 @@ class TelemetryService:
 
     async def _run(self) -> None:
         await asyncio.sleep(5)
-        if settings.replay_mode:
-            await self._init_replay_clock()
         interval = settings.telemetry_poll_interval_ms / 1000
         while True:
             try:
@@ -83,36 +121,23 @@ class TelemetryService:
                 logger.exception("Telemetry poll failed")
             await asyncio.sleep(interval)
 
-    async def _init_replay_clock(self) -> None:
-        sessions = await self._openf1.fetch_list(
-            "sessions", session_key=settings.replay_session_key
-        )
-        if not sessions:
-            logger.warning("Replay session %s not found", settings.replay_session_key)
-            return
-        session = sessions[0]
-        start = _parse_date(session.get("date_start"))
-        end_raw = session.get("date_end")
-        self._replay_start = start
-        self._replay_clock = start
-        self._replay_end = _parse_date({"date": end_raw}) if end_raw else None
-
     async def _poll_once(self) -> None:
-        if self._selected_driver is None:
-            return
-
         if settings.replay_mode:
-            if self._replay_clock is None:
-                await self._init_replay_clock()
-            if self._replay_clock is None:
+            self._sync_session()
+            # Sample the telemetry at the SAME instant the track map and timing
+            # tower are showing (shared ReplayClock), so brake/throttle/speed
+            # line up with the car's position on the track.
+            as_of = self._clock.now() if self._clock else None
+            if as_of is None or self._selected_driver is None:
                 return
             update = await self.fetch_replay_window(
-                settings.replay_session_key,
+                self._replay_session_key(),
                 self._selected_driver,
-                self._replay_clock,
+                as_of,
             )
-            await self._advance_replay_clock()
         else:
+            if self._selected_driver is None:
+                return
             update, self._live_cursor = await self.fetch_live(
                 self._selected_driver, self._live_cursor
             )
@@ -123,17 +148,6 @@ class TelemetryService:
         payload = {"type": "telemetry.update", "data": update.model_dump()}
         await self._cache.write_snapshot("telemetry", payload)
         await self._cache.publish("telemetry", payload)
-
-    async def _advance_replay_clock(self) -> None:
-        if self._replay_clock is None:
-            return
-        self._replay_clock += timedelta(seconds=settings.replay_step_seconds)
-        if (
-            self._replay_end is not None
-            and self._replay_clock > self._replay_end
-            and self._replay_start is not None
-        ):
-            self._replay_clock = self._replay_start
 
     async def fetch_live(
         self, driver_number: int, since: datetime | None
@@ -157,6 +171,32 @@ class TelemetryService:
             new_cursor,
         )
 
+    async def _ensure_trace_cache(
+        self, session_key: int, driver_number: int
+    ) -> _CachedTrace:
+        """Fetch a driver's full-session car_data once; reuse it thereafter."""
+        cached = self._trace_cache.get(driver_number)
+        if cached is not None:
+            return cached
+        records = await self._openf1.fetch_car_data(
+            {"session_key": session_key, "driver_number": driver_number}
+        )
+        pairs: list[tuple[float, TelemetrySample]] = []
+        for rec in records:
+            dt = _parse_date(rec.get("date"))
+            if dt is None:
+                continue
+            pairs.append((dt.timestamp(), _to_sample(rec)))
+        pairs.sort(key=lambda p: p[0])
+        trace = _CachedTrace(
+            ts=[p[0] for p in pairs], samples=[p[1] for p in pairs]
+        )
+        self._trace_cache[driver_number] = trace
+        logger.info(
+            "Replay car_data cached: driver=%d samples=%d", driver_number, len(pairs)
+        )
+        return trace
+
     async def fetch_replay_window(
         self,
         session_key: int,
@@ -164,16 +204,18 @@ class TelemetryService:
         as_of: datetime,
         window_seconds: float = TRACE_SECONDS,
     ) -> TelemetryUpdate:
-        start = as_of - timedelta(seconds=window_seconds)
-        records = await self._openf1.fetch_car_data(
-            {"session_key": session_key, "driver_number": driver_number},
-            [
-                ("date", ">", start.isoformat()),
-                ("date", "<=", as_of.isoformat()),
-            ],
-        )
-        samples = [_to_sample(r) for r in records]
-        samples.sort(key=lambda s: s.ts)
+        trace = await self._ensure_trace_cache(session_key, driver_number)
+        if not trace.ts:
+            return TelemetryUpdate(
+                driver_number=driver_number, is_live=False, samples=[]
+            )
+        end_ts = as_of.timestamp()
+        start_ts = end_ts - window_seconds
+        # Window is (start, end] — matches the previous date>/date<= filters.
+        lo = bisect.bisect_right(trace.ts, start_ts)
+        hi = bisect.bisect_right(trace.ts, end_ts)
         return TelemetryUpdate(
-            driver_number=driver_number, is_live=False, samples=samples
+            driver_number=driver_number,
+            is_live=False,
+            samples=trace.samples[lo:hi],
         )

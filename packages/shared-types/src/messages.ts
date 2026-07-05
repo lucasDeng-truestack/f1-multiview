@@ -25,4 +25,5 @@ export type ServerMessage =
 export type ClientMessage =
   | { type: "subscribe"; channels: string[] }
   | { type: "select_driver"; driver: number }
+  | { type: "load_session"; session_key: number }
   | { type: "load_replay"; year: number; round: number; session: string };

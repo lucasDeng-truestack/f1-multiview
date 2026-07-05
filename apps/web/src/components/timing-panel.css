@@ -5,6 +5,9 @@
 .pw-table {
   display: flex;
   flex-direction: column;
+  /* Narrow window: the column grid holds its alignment and scrolls sideways
+     inside the panel rather than crushing columns. */
+  overflow-x: auto;
 }
 
 .pw-row {
@@ -14,10 +17,16 @@
   gap: var(--space-2);
   padding: var(--space-1) var(--space-3);
   min-height: 26px;
+  min-width: 520px;
   font-family: var(--font-data);
   font-size: var(--fs-label);
   font-variant-numeric: tabular-nums;
   border-bottom: 0.5px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.pw-row:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--border-hi);
 }
 
 /* Quiet zebra — structure without competing with the data. */
@@ -93,19 +102,28 @@
 .pw-tyre {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
 }
 
-.pw-tyre-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
+/* Compound pill — the F1 tyre ring: compound-coloured letter + stint age.
+   Colour is data (real compound mapping), never decoration. */
+.pw-tyre-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 0 5px;
+  border: 1px solid var(--tyre-colour, var(--text-low));
+  border-radius: 8px;
+  font-size: var(--fs-unit);
+  line-height: 15px;
+}
+
+.pw-tyre-compound {
+  color: var(--tyre-colour, var(--text-low));
+  font-weight: 500;
 }
 
 .pw-tyre-age {
   color: var(--text-mid);
-  font-size: 12px;
 }
 
 /* ---- The breathing. Motion only where the race did something. ---- */
@@ -133,6 +151,20 @@
     }
     100% {
       color: var(--text-hi);
+    }
+  }
+
+  /* Gap/interval tick — the changed figure lifts to text-hi and settles back.
+     Column stays dead-still thanks to tabular figures. */
+  .pw-tick {
+    animation: pw-tick var(--flash-ms) ease-out;
+  }
+  @keyframes pw-tick {
+    0% {
+      color: var(--text-hi);
+    }
+    100% {
+      color: var(--text-mid);
     }
   }
 
@@ -173,8 +205,11 @@
   background: color-mix(in srgb, var(--bg-raised) 60%, transparent);
 }
 
+/* Selected driver (telemetry subject): quiet, structural — raised surface and a
+   hairline outline. Purple stays reserved for personal bests. */
 .pw-row-selected {
-  background: color-mix(in srgb, var(--purple) 12%, var(--bg-panel));
+  background: var(--bg-raised);
+  box-shadow: inset 0 0 0 1px var(--border-hi);
 }
 
 /* ---- Loading skeleton — tower-shaped, dim rows where numbers go. ---- */

@@ -21,6 +21,28 @@ const DEFAULT_WORKSPACE: Workspace = {
   ],
 };
 
+// Named workspaces for how different people read a race. Applying one replaces
+// the layout (persisted like any manual arrangement).
+export const PRESETS: Record<string, Workspace> = {
+  engineer: DEFAULT_WORKSPACE,
+  viewer: {
+    active: ["video", "track", "timing"],
+    layout: [
+      { i: "video", x: 0, y: 0, w: 7, h: 8, minW: 3, minH: 4 },
+      { i: "track", x: 7, y: 0, w: 5, h: 8, minW: 3, minH: 5 },
+      { i: "timing", x: 0, y: 8, w: 12, h: 7, minW: 4, minH: 5 },
+    ],
+  },
+  "telemetry focus": {
+    active: ["telemetry", "timing", "track"],
+    layout: [
+      { i: "telemetry", x: 0, y: 0, w: 12, h: 9, minW: 4, minH: 4 },
+      { i: "timing", x: 0, y: 9, w: 6, h: 7, minW: 4, minH: 5 },
+      { i: "track", x: 6, y: 9, w: 6, h: 7, minW: 3, minH: 5 },
+    ],
+  },
+};
+
 export function useGridLayout() {
   const [workspace, setWorkspace] = useState<Workspace>(DEFAULT_WORKSPACE);
   const [hydrated, setHydrated] = useState(false);
@@ -91,5 +113,21 @@ export function useGridLayout() {
 
   const reset = useCallback(() => persist(DEFAULT_WORKSPACE), [persist]);
 
-  return { workspace, hydrated, onLayoutChange, addPanel, removePanel, reset };
+  const applyPreset = useCallback(
+    (name: string) => {
+      const preset = PRESETS[name];
+      if (preset) persist(preset);
+    },
+    [persist],
+  );
+
+  return {
+    workspace,
+    hydrated,
+    onLayoutChange,
+    addPanel,
+    removePanel,
+    reset,
+    applyPreset,
+  };
 }

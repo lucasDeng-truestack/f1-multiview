@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any, Iterable
 
 from pitwall.cache.redis import RedisCache
 from pitwall.clients.openf1 import OpenF1Client
 from pitwall.config import settings
 from pitwall.models.timing import SEGMENT_CODES, SegmentColor, TimingRow, TimingSnapshot
+from pitwall.services.replay_clock import ReplayClock
+from pitwall.services.replay_controller import ReplayController
 
 logger = logging.getLogger(__name__)
 
@@ -58,19 +60,39 @@ def _dominant_segment(segments: list[int]) -> SegmentColor:
 
 
 class TimingService:
-    def __init__(self, openf1: OpenF1Client, cache: RedisCache) -> None:
+    def __init__(
+        self,
+        openf1: OpenF1Client,
+        cache: RedisCache,
+        clock: ReplayClock | None = None,
+        controller: ReplayController | None = None,
+    ) -> None:
         self._openf1 = openf1
         self._cache = cache
+        self._clock = clock
+        self._controller = controller
+        self._synced_version = 0
         self._task: asyncio.Task[None] | None = None
         self._drivers_cache: dict[str, dict[int, dict[str, Any]]] = {}
         self._endpoint_cache: dict[str, list[dict[str, Any]]] = {}
-        self._replay_clock: datetime | None = None
-        self._replay_start: datetime | None = None
-        self._replay_end: datetime | None = None
+
+    def _replay_session_key(self) -> int:
+        return (
+            self._controller.session_key
+            if self._controller is not None
+            else settings.replay_session_key
+        )
+
+    def _sync_session(self) -> None:
+        """Drop cached endpoints when the active session changed under us."""
+        if self._controller is None:
+            return
+        if self._controller.version != self._synced_version:
+            self._endpoint_cache.clear()
+            self._drivers_cache.clear()
+            self._synced_version = self._controller.version
 
     async def start(self) -> None:
-        if settings.replay_mode:
-            await self._init_replay_clock()
         self._task = asyncio.create_task(self._poll_loop())
 
     async def stop(self) -> None:
@@ -80,26 +102,6 @@ class TimingService:
                 await self._task
             except asyncio.CancelledError:
                 pass
-
-    async def _init_replay_clock(self) -> None:
-        sessions = await self._openf1.fetch_list(
-            "sessions", session_key=settings.replay_session_key
-        )
-        if not sessions:
-            logger.warning("Replay session %s not found", settings.replay_session_key)
-            return
-        session = sessions[0]
-        start = _parse_date(session)
-        end_raw = session.get("date_end")
-        self._replay_start = start
-        self._replay_clock = start
-        self._replay_end = _parse_date({"date": end_raw}) if end_raw else None
-        logger.info(
-            "Replay clock initialized for session %s (%s → %s)",
-            settings.replay_session_key,
-            self._replay_clock,
-            self._replay_end,
-        )
 
     async def _poll_loop(self) -> None:
         interval = settings.timing_poll_interval_ms / 1000
@@ -114,9 +116,13 @@ class TimingService:
 
     async def _poll_once(self) -> None:
         if settings.replay_mode:
-            as_of = self._replay_clock
-            snapshot = await self.build_snapshot(settings.replay_session_key, as_of=as_of)
-            await self._advance_replay_clock()
+            self._sync_session()
+            as_of = self._clock.now() if self._clock else None
+            if as_of is None:
+                return  # shared clock not configured yet
+            snapshot = await self.build_snapshot(
+                self._replay_session_key(), as_of=as_of
+            )
         else:
             # Live path: session_key=latest. OAuth bearer (free tier) is required
             # inside the live window (30 min before → 30 min after session). Outside
@@ -138,18 +144,6 @@ class TimingService:
             len(snapshot.rows),
             snapshot.is_live,
         )
-
-    async def _advance_replay_clock(self) -> None:
-        if self._replay_clock is None:
-            return
-        self._replay_clock += timedelta(seconds=settings.replay_step_seconds)
-        if (
-            self._replay_end is not None
-            and self._replay_clock > self._replay_end
-            and self._replay_start is not None
-        ):
-            self._replay_clock = self._replay_start
-            logger.info("Replay looped to session start")
 
     async def _drivers(self, session_key: int | str) -> dict[int, dict[str, Any]]:
         key = str(session_key)
